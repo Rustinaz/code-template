@@ -1,0 +1,257 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Keep the Android Gradle build from walking the whole repository.
+  GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The gate every change has to pass: format, lints, tests, and a build of
+  # the workspace on the host platform.
+  # ---------------------------------------------------------------------------
+  checks:
+    name: Format, lints, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Check every crate and target
+        run: cargo check --workspace --all-targets --all-features
+
+      - name: Tests
+        run: cargo test --workspace --all-features
+
+      - name: Docs build without warnings
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # ---------------------------------------------------------------------------
+  # The bundled backend: built, started, and hit over a real socket.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (build + smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --package server
+
+      - name: Smoke test the shared contract
+        run: |
+          ./target/debug/server --bind 127.0.0.1:8080 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:8080/api/health >/dev/null && break
+            sleep 0.1
+          done
+          curl -sf http://127.0.0.1:8080/api/health
+          curl -sf http://127.0.0.1:8080/api/users
+          curl -sf 'http://127.0.0.1:8080/api/users/search?q=wonder'
+
+  # ---------------------------------------------------------------------------
+  # Every target the Linux runner can produce, so a change that breaks Android
+  # or Web is caught here rather than on a developer's phone.
+  # ---------------------------------------------------------------------------
+  cross-compile:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android (all four ABIs)
+            target: aarch64-linux-android
+            extra: armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          - name: Web (wasm32)
+            target: wasm32-unknown-unknown
+            extra: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }} ${{ matrix.extra }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Source scripts/android-env.sh so the NDK clang is found for both the
+      # Rust linker and the C compiler cc-rs needs.
+      - name: Android NDK
+        if: contains(matrix.name, 'Android')
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Build
+        if: contains(matrix.name, 'Android')
+        run: |
+          source scripts/android-env.sh
+          for triple in ${{ matrix.target }} ${{ matrix.extra }}; do
+            echo "::group::$triple"
+            cargo build --package example-app --target "$triple"
+            test -f "target/$triple/debug/libexample_app.so"
+            echo "::endgroup::"
+          done
+
+      - name: Install Trunk
+        if: contains(matrix.name, 'Web')
+        run: cargo install --locked trunk
+
+      - name: Build
+        if: contains(matrix.name, 'Web')
+        run: scripts/build-web.sh
+
+      - uses: actions/upload-artifact@v4
+        if: contains(matrix.name, 'Android')
+        with:
+          name: android-so-debug
+          path: |
+            target/*/debug/libexample_app.so
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # The real APK, assembled by Gradle around the Rust `.so`.
+  # ---------------------------------------------------------------------------
+  android-apk:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+
+      - uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: android-app -> build
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble
+        working-directory: android-app
+        run: ./gradlew assembleDebug -PandroidAbi=arm64-v8a,armeabi-v7a
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: example-app-debug.apk
+          path: android-app/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Native desktop builds. Each runs on its own platform, because there is no
+  # honest way to prove a Windows or macOS binary from Linux.
+  # ---------------------------------------------------------------------------
+  desktop:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux desktop, os: ubuntu-latest, out: target/debug/example-app }
+          - { name: macOS desktop, os: macos-latest, out: target/debug/example-app }
+          - { name: Windows desktop, os: windows-latest, out: target/debug/example-app.exe }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libwayland-dev \
+            libx11-dev libxcb1-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libxinerama-dev pkg-config
+
+      - run: cargo build --package example-app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: example-app-${{ matrix.os }}
+          path: ${{ matrix.out }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # iOS can only be built on macOS. This checks it compiles; producing a signed
+  # `.ipa` needs certificates that a public CI runner does not have.
+  # ---------------------------------------------------------------------------
+  ios:
+    name: iOS (compile only)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the device library
+        run: scripts/build-ios.sh --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libexample_app-ios.a
+          path: target/aarch64-apple-ios/release/libexample_app.a
+          if-no-files-found: error

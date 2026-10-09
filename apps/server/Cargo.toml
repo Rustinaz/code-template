@@ -1,0 +1,28 @@
+[package]
+name = "server"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Bundled backend for the cross-platform template: a tiny HTTP/1.1 JSON API"
+
+# A library so the routing and parsing can be tested without binding a socket,
+# plus the binary that actually serves.
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+shared = { path = "../../crates/shared" }
+
+anyhow = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

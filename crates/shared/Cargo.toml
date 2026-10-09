@@ -1,0 +1,60 @@
+[package]
+name = "shared"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Shared business logic and domain models for lightweight cross-platform Rust applications"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+argon2 = { workspace = true }
+password-hash = { workspace = true }
+rand = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true, optional = true, default-features = false }
+toml = { workspace = true }
+config = { workspace = true }
+directories = { workspace = true }
+opener = { workspace = true }
+ron = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { workspace = true, features = ["Window"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+# Only `#[tokio::test]` needs this, and only the single-threaded runtime plus the
+# attribute macro: no networking, no filesystem, no process control. Keeping it
+# to those two features is also what keeps `mio`/`libc` out of the wasm32 graph,
+# since a browser has no epoll to give them.
+tokio = { version = "1.40", default-features = false, features = ["macros", "rt"] }
+
+[features]
+# `network` is OFF by default, deliberately.
+#
+# It pulls in `reqwest`, which needs sockets, TLS and blocking thread pools. A
+# browser tab has none of those, so enabling it by default would make
+# `cargo build --target wasm32-unknown-unknown` fail. Turn it on for the targets
+# that can host a native HTTP client:
+#
+#     cargo run -p example-app --features shared/network
+#
+# Without it, [`NetworkService`](crate::services::NetworkService) is
+# [`StubNetworkService`](crate::services::defaults::StubNetworkService), whose
+# every method returns `AppError::Unsupported`.
+default = []
+network = ["dep:reqwest"]

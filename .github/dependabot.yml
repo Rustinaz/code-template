@@ -1,0 +1,108 @@
+# Dependabot configuration for automated dependency updates
+# See: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Rust dependencies (Cargo.toml)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    # Limit to 10 PRs at a time
+    open-pull-requests-limit: 10
+    # Group minor/patch updates together
+    groups:
+      rust-dev-tools:
+        patterns:
+          - "clippy"
+          - "rustfmt"
+          - "cargo-*"
+        update-types:
+          - "minor"
+          - "patch"
+      rust-test-deps:
+        patterns:
+          - "mockall"
+          - "pretty_assertions"
+          - "proptest"
+        update-types:
+          - "minor"
+          - "patch"
+      rust-core:
+        patterns:
+          - "tokio"
+          - "anyhow"
+          - "thiserror"
+          - "serde*"
+          - "async-trait"
+          - "futures"
+          - "parking_lot"
+          - "once_cell"
+          - "uuid"
+          - "chrono"
+          - "reqwest"
+          - "tracing*"
+        update-types:
+          - "minor"
+          - "patch"
+      rust-ui:
+        patterns:
+          - "egui"
+          - "eframe"
+          - "slint"
+          - "iced"
+          - "tauri"
+        update-types:
+          - "minor"
+          - "patch"
+      rust-platform:
+        patterns:
+          - "android-activity"
+          - "jni"
+          - "objc2"
+          - "core-foundation*"
+          - "winapi"
+          - "windows"
+          - "wayland*"
+          - "gtk4"
+        update-types:
+          - "minor"
+          - "patch"
+      rust-serialization:
+        patterns:
+          - "serde*"
+          - "toml"
+          - "ron"
+        update-types:
+          - "minor"
+          - "patch"
+    # Allow updating minor/patch versions
+    allow:
+      - dependency-type: "direct"
+        update-type: "version-update:semver-minor"
+      - dependency-type: "direct"
+        update-type: "version-update:semver-patch"
+    # Ignore major version updates (require manual review)
+    ignore:
+      - dependency-name: "*"
+        update-type: "version-update:semver-major"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

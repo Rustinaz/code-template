@@ -1,0 +1,38 @@
+# Trunk build configuration for the web target.
+#
+#   trunk serve --config apps/example/Trunk.toml
+#
+# Trunk compiles the crate, runs `wasm-bindgen` on the output, and injects the
+# glue into `index.html`. It is the supported way to ship an eframe app to a
+# browser; `wasm-pack` does not work with eframe's WebGL backend.
+
+[build]
+target = "index.html"
+dist = "dist"
+# `cargo build` alone does not run wasm-bindgen's post-processing, and the
+# WebGL backend needs the opt-level bump to be usable in a browser.
+cargo_features = ""
+rustflags = ["-C", "target-feature=+bulk-memory"]
+
+# This package has two cargo targets that both emit a `.wasm`: the desktop
+# `[[bin]]` and the `[lib]` that holds the browser entry point. Which one gets
+# packaged is chosen by `data-target-name` on the `<link data-trunk rel="rust">`
+# in `index.html`, not here -- Trunk reads that off the HTML. Changing the
+# `[lib] name` in `Cargo.toml` means changing that attribute too.
+#
+# Trunk runs a bare `cargo build --target=wasm32-unknown-unknown`, so the bin is
+# compiled and then discarded. That costs a few seconds; it is not a mistake.
+
+[watch]
+watch = ["src", "../../crates"]
+
+[serve]
+port = 8080
+open = false
+# WebGL needs cross-origin isolation for shared memory.
+headers = {}
+
+[release]
+# Trunk minifies the generated JS and Wasm glue by default; the Rust code is
+# minified by `--profile release` in Cargo.toml.
+dist = "dist"

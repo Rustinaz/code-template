@@ -1,0 +1,45 @@
+# Cargo configuration for cross-platform builds.
+#
+# Deliberately small. Linkers, runners and profiles are *not* listed here:
+#
+#   * Linkers for Android/iOS depend on where your NDK/Xcode is installed, so
+#     they are set by `scripts/android-env.sh` (or by the `cargoBuild` Gradle
+#     task in `android-app/app/build.gradle.kts`) as environment variables.
+#     Environment variables beat this file, and a hard-coded path here would
+#     silently break on every machine that installs the NDK somewhere else.
+#   * Profiles live in the workspace `Cargo.toml`; defining them in both places
+#     is a conflict Cargo will not merge.
+
+# Offline-friendly network settings. `git-fetch-with-cli` means `git` handles
+# authentication for git dependencies, which `libgit2` frequently cannot.
+[net]
+git-fetch-with-cli = true
+retry = 3
+
+[http]
+timeout = 60
+
+# Handy aliases, kept short on purpose.
+#
+# No alias here may be named after a real Cargo subcommand (`fmt`, `clippy`,
+# `tree`, `doc`, ...). Cargo resolves an alias of the same name as the
+# subcommand to *itself*, which turns `cargo fmt` into infinite recursion and
+# fails outright. Hence `f` instead of `fmt`, and `l` instead of `clippy`.
+[alias]
+# Workspace-wide checks, which is what you want 95% of the time.
+c = "check --workspace --all-targets"
+t = "test --workspace --all-targets"
+b = "build --workspace"
+br = "build --workspace --release"
+
+# Quality gates.
+f = "fmt --all"
+l = "clippy --workspace --all-targets"
+check-all = "check --workspace --all-targets --all-features"
+
+# Run the bundled backend on 127.0.0.1:8080.
+server = "run --package server"
+
+# Inspection.
+deps = "tree --workspace --depth 2"
+docs = "doc --workspace --no-deps"

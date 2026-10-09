@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Rustinaz: run example-app (desktop)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--package", "example-app", "--bin", "example-app"],
+        "filter": { "name": "example-app", "kind": "bin" }
+      },
+      "args": ["--debug"],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"]
+    },
+    {
+      "name": "Rustinaz: run example-app against the backend",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--package", "example-app", "--bin", "example-app"],
+        "filter": { "name": "example-app", "kind": "bin" }
+      },
+      "args": ["--debug", "--server", "http://127.0.0.1:8080"],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"]
+    }
+  ]
+}

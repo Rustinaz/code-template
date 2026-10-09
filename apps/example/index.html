@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Example App</title>
+    <!--
+      `data-target-name` selects which cargo target Trunk packages.
+
+      `example-app` produces both a bin (the desktop entry point) and a lib
+      (`example_app`, the wasm entry point), and Cargo emits a `.wasm` for
+      each. Without this attribute Trunk refuses to guess and fails with
+      "found more than one target artifact". The name is the `[lib] name` in
+      `Cargo.toml`, not the package name.
+    -->
+    <link data-trunk rel="rust" data-target-name="example_app" />
+    <style>
+      /*
+       * The canvas fills the viewport and is the only thing on the page. The
+       * Rust side reads `window.innerWidth` / `innerHeight` for its layout, so
+       * the container must be the full viewport, not the body with margins.
+       */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #fffbfe;
+      }
+
+      /*
+       * `touch-action: none` stops the browser from claiming drags and
+       * two-finger gestures that egui needs for its own interaction.
+       */
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+      }
+
+      /*
+       * Shown until the WASM module has booted. Trunk removes the element once
+       * the `rust` script has been fetched and started.
+       */
+      .loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 500 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: #49454f;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      The canvas eframe draws into. Its id is read by `WEB_CANVAS_ID` in
+      `src/lib.rs`; the two must agree, or the app aborts at start-up with
+      "no element with id ...".
+    -->
+    <canvas id="the_canvas_id"></canvas>
+    <div class="loading">Loading…</div>
+  </body>
+</html>

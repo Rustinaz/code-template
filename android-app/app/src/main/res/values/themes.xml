@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A plain, fullscreen, no-action-bar theme. All actual styling is done by egui
+  inside Rust, so this only has to hand the surface over cleanly.
+-->
+<resources>
+    <style name="Theme.RustCrossplatform" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>

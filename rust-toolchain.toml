@@ -1,0 +1,12 @@
+# Pins the toolchain for everyone, which is what makes an editor's analysis
+# match CI: rust-analyzer and RustRover respect this file and pick the same
+# `stable` channel, and the two components are exactly what the quality gates
+# and CI need.
+#
+# No `targets` key on purpose. The Android and wasm targets are your choice and
+# are installed by the commands in the README (`rustup target add ...`); listing
+# them here would make every contributor download all four Android ABIs whether
+# or not they build for Android.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

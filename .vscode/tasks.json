@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Rustinaz: backend (server)",
+      "type": "shell",
+      "command": "cargo run --package server",
+      "problemMatcher": ["$rustc"],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Rustinaz: server + client (dev.sh)",
+      "type": "shell",
+      "command": "bash scripts/dev.sh",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Rustinaz: test (all features)",
+      "type": "shell",
+      "command": "cargo test --workspace --all-targets --all-features",
+      "problemMatcher": ["$rustc"],
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "Rustinaz: check-all",
+      "type": "shell",
+      "command": "cargo check --workspace --all-targets --all-features",
+      "problemMatcher": ["$rustc"],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+[package]
+name = "platform-linux"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Linux platform integration for cross-platform Rust applications"
+
+[dependencies]
+shared = { path = "../../shared" }
+ui = { path = "../../ui" }
+parking_lot = { workspace = true }
+tracing = { workspace = true }

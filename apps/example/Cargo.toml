@@ -1,0 +1,75 @@
+[package]
+name = "example-app"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Example application demonstrating the cross-platform template"
+
+# The Android build loads this crate as `libexample_app.so`, so the library
+# name is what `AndroidManifest.xml`'s `android.app.lib_name` and the Gradle
+# `rustLibName` must both say.
+#
+# `staticlib` is there for iOS: an Xcode app links a `.a`, not a `.so`.
+[lib]
+name = "example_app"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "example-app"
+path = "src/main.rs"
+
+[dependencies]
+shared = { path = "../../crates/shared" }
+ui = { path = "../../crates/ui" }
+resources = { path = "../../crates/resources" }
+
+anyhow = { workspace = true }
+clap = { workspace = true }
+eframe = { workspace = true }
+parking_lot = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+# winit is only needed on Android, to hand the `AndroidApp` to the event loop.
+# Everywhere else eframe already depends on it.
+[target.'cfg(target_os = "android")'.dependencies]
+winit = { workspace = true }
+android-activity = { workspace = true }
+platform-android = { path = "../../crates/platform/android" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+platform-linux = { path = "../../crates/platform/linux" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+platform-windows = { path = "../../crates/platform/windows" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+platform-macos = { path = "../../crates/platform/macos" }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+platform-ios = { path = "../../crates/platform/ios" }
+
+# eframe has no `web` feature: the WebGL backend is simply the one that compiles
+# for wasm32, so nothing extra is needed beyond the browser bindings themselves.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+platform-web = { path = "../../crates/platform/web" }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+# `#[wasm_bindgen(start)]` on an `async fn` expands to a call to
+# `wasm_bindgen_futures::spawn_local`, so the macro pulls this in whether or not
+# the file imports it directly.
+wasm-bindgen-futures = "0.4"
+# `argon2` pulls in `rand` 0.8, which asks `getrandom` 0.2 for OS entropy. On a
+# browser there is no such syscall, so `getrandom` refuses to build unless the
+# `js` backend is switched on, which routes entropy through
+# `crypto.getRandomValues`. Declared here rather than in the workspace because
+# the feature must only apply to the wasm graph — on every other target
+# `getrandom` uses the real OS and the extra feature is dead weight.
+getrandom = { version = "0.2", features = ["js"] }
+# `uuid`'s `v4` is the only id source here, and on wasm it must be told to use
+# the browser's `crypto.getRandomValues` instead of the OS. Declared here so the
+# feature reaches the single `uuid` in the wasm graph by unification.
+uuid = { version = "1.8", features = ["v4", "serde", "js"] }

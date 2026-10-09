@@ -1,0 +1,32 @@
+[package]
+name = "ui"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Cross-platform UI: shared component logic, theme tokens, and egui rendering"
+
+[dependencies]
+shared = { path = "../shared" }
+egui = { workspace = true, optional = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+# Only `platform/web.rs` touches the DOM, so these exist purely for the wasm32
+# graph. On every other target they are absent and the module is never compiled.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+js-sys = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[features]
+default = ["egui"]
+# The `egui` feature turns the shared component *logic* into real widgets.
+# Without it the crate still builds, which is what the platform crates need.
+egui = ["dep:egui"]

@@ -1,0 +1,24 @@
+[package]
+name = "resources"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Resource management for cross-platform Rust applications (strings, colors, themes, assets)"
+
+[dependencies]
+shared = { path = "../shared" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ron = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+directories = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+mime_guess = "2.0"
+
+[features]
+default = []
+hot_reload = []

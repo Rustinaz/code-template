@@ -1,0 +1,74 @@
+# Rust build output
+/target/
+**/target/
+
+# `Cargo.lock` is deliberately NOT ignored. This workspace builds an
+# application, not a library, so the exact dependency versions are part of the
+# source and must be committed. That is also what makes a teammate's first
+# `cargo build` produce the same binary as yours.
+
+# Android / Gradle
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/.kotlin/
+android-app/captures/
+android-app/.externalNativeBuild/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.keystore
+*.jks
+
+# iOS / macOS
+*.xcworkspace
+*.xcodeproj/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+*.ipa
+*.dSYM
+*.app.dSYM
+*.mobileprovision
+*.p12
+*.certSigningRequest
+*.cer
+
+# Web / WASM build output
+apps/example/dist/
+apps/example/pkg/
+*.wasm
+
+# Editor and OS noise. Personal editor state stays out of the repo, but the few
+# shared VS Code files (run config, tasks, rust-analyzer settings, recommended
+# extensions) are committed so anyone can press F5 and run the app.
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Secrets and local config
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.pfx
+
+# Logs and scratch files
+*.log
+*.tmp
+*.bak
+*.backup
+*.profraw
+*.profdata

@@ -1,0 +1,17 @@
+[package]
+name = "platform-windows"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Windows platform integration"
+
+[dependencies]
+shared = { path = "../../shared" }
+ui = { path = "../../ui" }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true }
