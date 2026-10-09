@@ -113,6 +113,10 @@ windows = { version = "0.58", features = [
 # Utilities
 uuid = { version = "1.8", features = ["v4", "serde", "fast-rng"] }
 chrono = { version = "0.4", features = ["serde"] }
+# A drop-in `std::time` that does not abort on `wasm32-unknown-unknown`, where
+# `Instant::now()` and `SystemTime::now()` are unsupported. On every other
+# target it is a plain `pub use std::time`, so it costs nothing off the web.
+web-time = "1.1"
 url = "2.5"
 regex = "1.10"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }

@@ -370,6 +370,12 @@ The desktop `run()` and the wasm `run_web()` are mutually exclusive on purpose: 
 needs an operating system window and `WebRunner` needs a document, so neither compiles for
 the other's target, and each is `#[cfg]`-gated.
 
+`wasm32-unknown-unknown` also has no clock: `std::time::Instant::now()` and
+`SystemTime::now()` abort there. Anything that needs the time of day or a monotonic instant
+uses `web_time` instead — a re-export of `std::time` on every native target, and a
+`performance.now()`/`Date.now()` implementation in the browser. That is why `web-time` is a
+workspace dependency rather than a one-off import.
+
 `src/main.rs` is a thin binary that calls `example_app::run()` on desktop and stubs out to
 `unreachable!()` under wasm. Keeping the app in the library is what lets the same code be a
 desktop binary, an Android `.so`, a browser `.wasm` and an iOS `.a`.
@@ -697,9 +703,34 @@ worse than a small one that tells the truth.
   assembled by Gradle and inspected: it contains all four libraries, **zero `.class` files**
   (the manifest really does point at the framework's `NativeActivity`), and the
   `android.app.lib_name` value matches the library.
-- **The web target**: built end to end with Trunk. `apps/example/dist/` contains a real
-  `.wasm`, its wasm-bindgen glue and an `index.html` with the canvas and start-up script
-  injected.
+- **The web target**: built end to end with Trunk, served from a plain static file server and
+  opened in a real browser. The WASM starts, eframe attaches to the `<canvas>` (it resized to
+  the viewport, 904×867 here) and the UI renders. Reaching that turned up three start-up bugs
+  the compiler could not catch; they are written up below.
+
+### Bugs the browser target found (all fixed)
+
+Compiling for `wasm32-unknown-unknown` proves very little about *running* there: the host
+functions a browser lacks only surface when they are actually called. Bringing the web app up
+found three, and the first would have stopped Android just as surely:
+
+1. **`AppConfig::load()` demanded a config directory.** `directories::ProjectDirs::from`
+   returns `None` when it cannot resolve `$XDG_CONFIG_HOME`/`$HOME`, which is always the case
+   in a browser and on Android. Config loading treated that as fatal, so the app aborted
+   *before* the built-in defaults were reached — on both targets. The file is now optional;
+   the defaults are a complete configuration on their own.
+2. **The `config` crate's environment source aborts on wasm.** Its `Environment` source walks
+   `std::env::vars_os()`, which is unimplemented on `wasm32-unknown-unknown`. The `APP__*`
+   overlay is now added only on targets that really have a process environment.
+3. **The tracing subscriber's timer aborts on wasm.** The default `fmt` timer formats
+   `SystemTime::now()`, unsupported on `wasm32-unknown-unknown`; the browser build now installs
+   a subscriber with `.without_time()`.
+
+The same "no clock, no threads" rule reaches `ui`'s navigation and animation helpers, which
+store an `Instant` and drive a worker thread. The example app never calls them, but they now
+use `web_time` and skip the thread on wasm, so wiring them into a web UI later does not abort.
+`detect_platform()` was wrong too — it returned `Platform::Linux` on every non-Linux target, so
+the default platform is now correct on Android, iOS, Windows and macOS as well.
 
 **Not verifiable on this machine, and honestly marked as such:**
 
@@ -711,7 +742,9 @@ worse than a small one that tells the truth.
   machine has neither, and no `sudo` to install one.
 - **Nothing has been run on a physical Android device or an emulator from here.** The APK
   is well-formed and its contents were inspected, but "packages correctly" and "runs
-  correctly" are different claims, and only the first was tested.
+  correctly" are different claims, and only the first was tested. The config-directory bug
+  above would have aborted the app on launch; it is fixed, but this remains a packaging
+  claim, not a run.
 - **The backend panel's button was not clicked by a human here.** Its network path is
   `HttpNetworkService`, whose live-socket round trip is unit-tested, and its worker-thread
   plumbing compiles for every target, but the click-to-result path through the GUI was not

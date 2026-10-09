@@ -98,27 +98,43 @@ pub mod animation {
         }
     }
 
-    pub fn animate<F>(animation: Animation, mut update: F) 
+    /// Drives `update` from 0 to 1 over the animation's duration.
+    ///
+    /// A placeholder for a real animation loop. On native targets it runs on a
+    /// worker thread. A browser has neither threads nor a usable `std` clock,
+    /// so there it applies the animation's final state directly; a real web app
+    /// would drive the loop from `requestAnimationFrame` instead.
+    pub fn animate<F>(animation: Animation, update: F)
     where
         F: FnMut(f32) + Send + 'static,
     {
-        // Would integrate with platform animation system
-        let start = std::time::Instant::now();
-        let duration = animation.duration;
-        
-        std::thread::spawn(move || {
-            loop {
-                let elapsed = start.elapsed();
-                if elapsed >= duration {
-                    update(1.0);
-                    break;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let start = web_time::Instant::now();
+            let duration = animation.duration;
+
+            std::thread::spawn(move || {
+                let mut update = update;
+                loop {
+                    let elapsed = start.elapsed();
+                    if elapsed >= duration {
+                        update(1.0);
+                        break;
+                    }
+                    let progress = elapsed.as_secs_f32() / duration.as_secs_f32();
+                    let eased = animation.easing.apply(progress);
+                    update(eased);
+                    std::thread::sleep(Duration::from_millis(16));
                 }
-                let progress = elapsed.as_secs_f32() / duration.as_secs_f32();
-                let eased = animation.easing.apply(progress);
-                update(eased);
-                std::thread::sleep(Duration::from_millis(16));
-            }
-        });
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = animation;
+            let mut update = update;
+            update(1.0);
+        }
     }
 
     pub fn spring(mass: f32, stiffness: f32, damping: f32) -> SpringAnimation {

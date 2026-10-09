@@ -8,6 +8,7 @@ use shared::domain::Route;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tracing::{debug, info};
+use web_time::Instant;
 
 /// Maps the remaining part of a deep link onto a [`Route`].
 ///
@@ -20,7 +21,7 @@ pub type DeepLinkResolver = Box<dyn Fn(&str) -> Option<Route> + Send + Sync>;
 pub struct NavEntry {
     pub route: Route,
     pub params: std::collections::HashMap<String, String>,
-    pub timestamp: std::time::Instant,
+    pub timestamp: Instant,
 }
 
 /// Navigation direction
@@ -59,7 +60,7 @@ impl NavigationController {
         let entry = NavEntry {
             route: route.clone(),
             params: Self::extract_params(&route),
-            timestamp: std::time::Instant::now(),
+            timestamp: Instant::now(),
         };
 
         match direction {

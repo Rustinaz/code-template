@@ -3944,6 +3944,7 @@ dependencies = [
  "url",
  "uuid",
  "web-sys",
+ "web-time",
 ]
 
 [[package]]
@@ -4585,6 +4586,7 @@ dependencies = [
  "uuid",
  "wasm-bindgen",
  "web-sys",
+ "web-time",
 ]
 
 [[package]]

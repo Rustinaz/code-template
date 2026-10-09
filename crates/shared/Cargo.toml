@@ -23,6 +23,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+web-time = { workspace = true }
 url = { workspace = true }
 reqwest = { workspace = true, optional = true, default-features = false }
 toml = { workspace = true }

@@ -7,7 +7,9 @@ use crate::domain::{
     DeviceInfo, FormFactor, Orientation, Platform, SafeArea, ScreenSize, ThemeTokens,
 };
 use crate::errors::{ConfigError, Result};
-use config::{Config, Environment, File, FileFormat};
+#[cfg(not(target_arch = "wasm32"))]
+use config::Environment;
+use config::{Config, File, FileFormat};
 use directories::ProjectDirs;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
@@ -15,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Global configuration instance
 static GLOBAL_CONFIG: Lazy<RwLock<Option<Arc<AppConfig>>>> = Lazy::new(|| RwLock::new(None));
@@ -207,13 +209,14 @@ impl AppConfig {
     }
 
     fn load_internal() -> Result<Self> {
-        let project_dirs = ProjectDirs::from("com", "example", "rust-crossplatform-template")
-            .ok_or_else(|| ConfigError::FileNotFound {
-                path: "project directories".to_string(),
-            })?;
-
-        let config_dir = project_dirs.config_dir();
-        let config_file = config_dir.join("config.toml");
+        // `directories` cannot resolve a config directory on every target: the
+        // browser has no filesystem, and Android has no XDG home. That is not an
+        // error -- the built-in defaults below are a complete configuration, and
+        // the file and the `APP__*` environment variables are optional overlays
+        // on top of them. Requiring `ProjectDirs` here made web and Android
+        // boot fail outright before the defaults were ever reached.
+        let config_file = ProjectDirs::from("com", "example", "rust-crossplatform-template")
+            .map(|dirs| dirs.config_dir().join("config.toml"));
 
         let mut builder = Config::builder()
             // Default values
@@ -276,15 +279,26 @@ impl AppConfig {
             .set_default("features.telemetry", false)?
             .set_default("features.custom", HashMap::<String, bool>::new())?;
 
-        // Load from config file if exists
-        if config_file.exists() {
-            builder =
-                builder.add_source(File::new(config_file.to_str().unwrap(), FileFormat::Toml));
-            info!("Loading config from: {}", config_file.display());
+        // Load from a config file only when the target has a config directory
+        // and the file is actually there.
+        if let Some(path) = config_file.as_deref() {
+            if path.exists() {
+                let path_str = path.to_str().ok_or_else(|| ConfigError::FileNotFound {
+                    path: path.display().to_string(),
+                })?;
+                builder = builder.add_source(File::new(path_str, FileFormat::Toml));
+                info!("Loading config from: {}", path.display());
+            }
         }
 
-        // Load from environment variables (prefixed with APP_)
-        builder = builder.add_source(Environment::with_prefix("APP").separator("__"));
+        // Load from environment variables (prefixed with APP__). The `config`
+        // crate's environment source walks `std::env::vars_os`, which is
+        // unsupported on wasm32 and panics there, so the overlay is only added
+        // where a real process environment exists.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            builder = builder.add_source(Environment::with_prefix("APP").separator("__"));
+        }
 
         let config = builder.build()?;
         let app_config: AppConfig = config.try_deserialize()?;
@@ -299,12 +313,26 @@ impl AppConfig {
         Ok(app_config)
     }
 
-    /// Detect current platform
+    /// Detect the current platform.
+    ///
+    /// This only supplies the default for `platform.platform` when no config
+    /// file sets it. Entry points that already know their target (Android and
+    /// the web) still override it, so this never has to be right on a target the
+    /// host compiler is not building for -- but it must at least name the target
+    /// it *is* building for, which the old Linux-only version did not.
     fn detect_platform() -> Platform {
-        #[cfg(target_os = "linux")]
-        return Platform::Linux;
         #[cfg(target_arch = "wasm32")]
         return Platform::Web;
+        #[cfg(target_os = "android")]
+        return Platform::Android;
+        #[cfg(target_os = "ios")]
+        return Platform::Ios;
+        #[cfg(target_os = "windows")]
+        return Platform::Windows;
+        #[cfg(target_os = "macos")]
+        return Platform::Macos;
+        #[cfg(target_os = "linux")]
+        return Platform::Linux;
         #[allow(unreachable_code)]
         Platform::Linux
     }
@@ -354,12 +382,16 @@ impl AppConfig {
         Ok(())
     }
 
-    /// Save configuration to file
+    /// Save configuration to file.
+    ///
+    /// A silent no-op on targets without a config directory (the browser and
+    /// Android), where the defaults are the only configuration anyway.
     pub fn save(&self) -> Result<()> {
-        let project_dirs = ProjectDirs::from("com", "example", "rust-crossplatform-template")
-            .ok_or_else(|| ConfigError::FileNotFound {
-                path: "project directories".to_string(),
-            })?;
+        let Some(project_dirs) = ProjectDirs::from("com", "example", "rust-crossplatform-template")
+        else {
+            warn!("No config directory on this target; not saving configuration");
+            return Ok(());
+        };
 
         let config_dir = project_dirs.config_dir();
         std::fs::create_dir_all(config_dir)?;
@@ -645,5 +677,36 @@ mod tests {
         assert_eq!(bp.phone_max_width, 599);
         assert_eq!(bp.tablet_max_width, 839);
         assert_eq!(bp.desktop_min_width, 840);
+    }
+
+    #[test]
+    fn detect_platform_names_the_host_target() {
+        // Guards the regression where this matched Linux only. The Android and
+        // web entry points override the platform, but a default that says Linux
+        // on every target is still wrong and hides the mistake.
+        let expected = if cfg!(target_arch = "wasm32") {
+            Platform::Web
+        } else if cfg!(target_os = "android") {
+            Platform::Android
+        } else if cfg!(target_os = "ios") {
+            Platform::Ios
+        } else if cfg!(target_os = "windows") {
+            Platform::Windows
+        } else if cfg!(target_os = "macos") {
+            Platform::Macos
+        } else {
+            Platform::Linux
+        };
+        assert_eq!(AppConfig::detect_platform(), expected);
+    }
+
+    #[test]
+    fn config_loads_without_a_config_file() {
+        // The built-in defaults are a complete configuration. A missing
+        // `config.toml` -- always the case in a browser, and on Android -- must
+        // not fail start-up; that bug stopped both targets from booting at all.
+        let config = AppConfig::load().expect("the built-in defaults should always load");
+        assert_eq!(config.network.base_url, "http://127.0.0.1:8080");
+        assert_eq!(config.platform.platform, AppConfig::detect_platform());
     }
 }

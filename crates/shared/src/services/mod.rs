@@ -403,7 +403,10 @@ pub mod defaults {
     use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
     use argon2::Argon2;
     use password_hash::rand_core::OsRng;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    // `SystemTime::now()` aborts on `wasm32-unknown-unknown`, so the whole
+    // clock -- including the epoch it is measured against -- comes from
+    // `web_time`, which re-exports `std::time` on every other target.
+    use web_time::{SystemTime, UNIX_EPOCH};
 
     /// Re-exported so callers find it next to the other default services.
     /// Implemented in [`crate::services::http`] because it does real I/O and

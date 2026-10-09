@@ -80,11 +80,24 @@ pub fn init_blocking(config: Option<Arc<AppConfig>>) -> Result<Arc<AppConfig>> {
 
     // Initialize tracing. A second call panics inside `init()`, which is fine:
     // the process only ever boots once.
+    //
+    // The default timer prints the wall clock via `SystemTime::now()`, which is
+    // unsupported on `wasm32-unknown-unknown` and panics there, so the browser
+    // build installs a subscriber without timestamps. That target also has no
+    // process environment to read `RUST_LOG` from, so it uses a fixed level.
+    #[cfg(not(target_arch = "wasm32"))]
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
+        .try_init()
+        .ok();
+
+    #[cfg(target_arch = "wasm32")]
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_max_level(tracing::Level::INFO)
         .try_init()
         .ok();
 
